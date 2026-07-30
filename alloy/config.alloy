@@ -1,0 +1,62 @@
+// Grafana Alloy — the log collector (successor to Promtail).
+//
+// It discovers every container on the host from the Docker socket, tails their
+// logs, enriches them with useful labels, and pushes to Loki. New containers
+// are picked up automatically; there is nothing to add per service.
+
+// 1. Discover all containers.
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+// 2. Derive friendly labels from Docker/compose metadata.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_environment"]
+    target_label  = "environment"
+  }
+}
+
+// 3. Tail container logs.
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.containers.output
+  relabel_rules = discovery.relabel.containers.rules
+  labels        = { job = "docker" }
+  forward_to    = [loki.process.parse.receiver]
+}
+
+// 4. Best-effort: pull a `level` label out of JSON logs (Go slog, Fastify/pino,
+//    etc.). Non-JSON lines (e.g. nginx) pass through untouched.
+loki.process "parse" {
+  stage.json {
+    expressions = { level = "level" }
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+// 5. Ship to Loki.
+loki.write "default" {
+  endpoint {
+    url = "http://observability-loki:3100/loki/api/v1/push"
+  }
+}
