@@ -13,20 +13,36 @@ Nothing is exposed outside the LAN.
 
 ## Deploy
 
-Config comes from a **`stack.env`** file (the same convention as the other
-stacks). Never commit it — only `stack.env.example` is tracked.
+Deploy from **Git** (Portainer "Repository"), not by pasting the compose. Grafana,
+Loki, Alloy and Prometheus are **built** from small Dockerfiles that `COPY` their
+config in — see [Why images are built](#why-images-are-built) — so Portainer needs
+the repo, and the config files, present to build.
 
-1. Fill in the values from `stack.env.example` — Grafana admin password and the
-   Gmail SMTP **App Password** (see below).
-2. Deploy the stack:
-   - **Portainer**: Stacks → Add stack → point at this repo (or paste
-     `docker-compose.yml`) → under **Environment variables** add the keys from
-     `stack.env.example`. Portainer writes them to a `stack.env` file that the
-     compose loads. Deploy.
-   - **CLI**: `cp stack.env.example stack.env`, edit it, then `docker compose up -d`.
+1. **Portainer**: Stacks → Add stack → **Repository**
+   - Repository URL: `https://github.com/ArthurWerle/observability`
+   - Reference: `refs/heads/main` · Compose path: `docker-compose.yml`
+   - Under **Environment variables** add the keys from `stack.env.example`
+     (Grafana admin password + Gmail SMTP **App Password**, see below). Portainer
+     writes them to a `stack.env` file that the compose loads.
+   - Deploy. First deploy builds the four images (a minute or two).
+2. **CLI**: `cp stack.env.example stack.env`, edit it, then
+   `docker compose up -d --build`.
 3. Open Grafana at `http://<mini-pc-ip>:3000` and log in. The **Homelab Overview**
    dashboard, the Loki/Prometheus datasources, and the e-mail alerts are already
    provisioned.
+
+To change any config later, edit the file (e.g. `prometheus/prometheus.yml`) and
+redeploy — Portainer rebuilds the image.
+
+### Why images are built
+
+Portainer keeps a stack's files **inside the Portainer container**
+(`/data/compose/…`), but a bind-mount source is resolved by the Docker daemon on
+the **host**, which can't see that path. It then creates an empty directory there
+and the mount fails with *"mounting a directory onto a file"*. Baking each config
+into an image via `COPY` sidesteps host-path resolution (the build context is sent
+to the daemon by compose), so it deploys reliably under Portainer while keeping the
+config files separate and editable in the repo.
 
 ### Gmail App Password (for alerts)
 
@@ -85,12 +101,22 @@ import these community dashboards (Grafana → Dashboards → New → Import →
 ```
 docker-compose.yml            grafana, loki, alloy, prometheus, cadvisor, node-exporter
 stack.env.example             admin login, Gmail SMTP, retention (Portainer env vars)
-prometheus/prometheus.yml     scrape config (cadvisor, node-exporter, docker SD)
-loki/loki-config.yml          single-binary Loki, filesystem, 30d retention
-alloy/config.alloy            Docker log discovery -> Loki
+prometheus/
+  Dockerfile                  bakes prometheus.yml into the image
+  prometheus.yml              scrape config (cadvisor, node-exporter, docker SD)
+loki/
+  Dockerfile                  bakes loki-config.yml into the image
+  loki-config.yml             single-binary Loki, filesystem, 30d retention
+alloy/
+  Dockerfile                  bakes config.alloy into the image
+  config.alloy                Docker log discovery -> Loki
 grafana/
+  Dockerfile                  bakes provisioning/ + dashboards/ into the image
   provisioning/datasources    Prometheus + Loki
-  provisioning/dashboards     dashboard provider
+  provisioning/dashboards     dashboard provider (points at /etc/grafana/dashboards)
   provisioning/alerting       contact point (e-mail), policy, alert rules
   dashboards                  Homelab Overview
 ```
+
+(cAdvisor and node-exporter aren't built — they only mount real host paths
+`/`, `/sys`, `/var/run/docker.sock`, which the daemon resolves fine.)

@@ -9,14 +9,23 @@
 #              `prometheus.io/*` labels (see README).
 #   - Alerts : Grafana unified alerting e-mails critical failures.
 #
-# Everything stays on the LAN. In Portainer, define the variables from
-# stack.env.example in the stack's Environment section — Portainer writes them to
-# a `stack.env` file that this compose loads below. For plain CLI, copy
-# stack.env.example -> stack.env and run `docker compose up -d`.
+# Why the config-bearing services (grafana, loki, alloy, prometheus) are BUILT
+# from small Dockerfiles instead of bind-mounting their config files:
+# Portainer keeps a stack's files INSIDE the Portainer container (/data/compose
+# /...), but a bind-mount source is resolved by the Docker daemon on the HOST,
+# which can't see that path — so it silently creates an empty directory there
+# and the mount fails ("mounting a directory onto a file"). Baking each config
+# into an image via `COPY` avoids host-path resolution entirely: the build
+# context is sent to the daemon by compose, so it works under Portainer.
+# The config files still live separately under prometheus/, loki/, alloy/,
+# grafana/ for easy editing — edit a file and redeploy (Portainer rebuilds).
+#
+# Set the variables from stack.env.example in the stack's Environment section.
 
 services:
   grafana:
-    image: grafana/grafana:11.4.0
+    build: ./grafana
+    image: observability-grafana:local
     container_name: observability-grafana
     restart: unless-stopped
     # Portainer writes the stack's Environment variables into this file.
@@ -39,8 +48,6 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - loki
       - prometheus
@@ -48,18 +55,19 @@ services:
       - observability
 
   loki:
-    image: grafana/loki:3.3.2
+    build: ./loki
+    image: observability-loki:local
     container_name: observability-loki
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yml
     volumes:
-      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
       - loki_data:/loki
     networks:
       - observability
 
   alloy:
-    image: grafana/alloy:v1.5.1
+    build: ./alloy
+    image: observability-alloy:local
     container_name: observability-alloy
     restart: unless-stopped
     command:
@@ -68,7 +76,6 @@ services:
       - --storage.path=/var/lib/alloy/data
       - --server.http.listen-addr=0.0.0.0:12345
     volumes:
-      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - alloy_data:/var/lib/alloy/data
     depends_on:
@@ -77,7 +84,8 @@ services:
       - observability
 
   prometheus:
-    image: prom/prometheus:v3.1.0
+    build: ./prometheus
+    image: observability-prometheus:local
     container_name: observability-prometheus
     restart: unless-stopped
     command:
@@ -86,7 +94,6 @@ services:
       - --storage.tsdb.retention.time=${PROM_RETENTION:-15d}
       - --web.enable-lifecycle
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
       - /var/run/docker.sock:/var/run/docker.sock:ro
     # Lets Prometheus reach every service's /metrics through the host's
