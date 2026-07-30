@@ -1,0 +1,11 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email-arthur
+    receivers:
+      - uid: email_arthur
+        type: email
+        settings:
+          addresses: arthur.werle@gmail.com
+          singleEmail: false
