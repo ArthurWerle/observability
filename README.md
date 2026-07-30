@@ -13,12 +13,17 @@ Nothing is exposed outside the LAN.
 
 ## Deploy
 
-1. `cp .env.example .env` and fill it in — Grafana admin password and the Gmail
-   SMTP **App Password** (see below).
+Config comes from a **`stack.env`** file (the same convention as the other
+stacks). Never commit it — only `stack.env.example` is tracked.
+
+1. Fill in the values from `stack.env.example` — Grafana admin password and the
+   Gmail SMTP **App Password** (see below).
 2. Deploy the stack:
-   - **Portainer**: Stacks → Add stack → upload this repo (or paste
-     `docker-compose.yml`) → add the `.env` variables → Deploy.
-   - **CLI**: `docker compose up -d`
+   - **Portainer**: Stacks → Add stack → point at this repo (or paste
+     `docker-compose.yml`) → under **Environment variables** add the keys from
+     `stack.env.example`. Portainer writes them to a `stack.env` file that the
+     compose loads. Deploy.
+   - **CLI**: `cp stack.env.example stack.env`, edit it, then `docker compose up -d`.
 3. Open Grafana at `http://<mini-pc-ip>:3000` and log in. The **Homelab Overview**
    dashboard, the Loki/Prometheus datasources, and the e-mail alerts are already
    provisioned.
@@ -79,7 +84,7 @@ import these community dashboards (Grafana → Dashboards → New → Import →
 
 ```
 docker-compose.yml            grafana, loki, alloy, prometheus, cadvisor, node-exporter
-.env.example                  admin login, Gmail SMTP, retention
+stack.env.example             admin login, Gmail SMTP, retention (Portainer env vars)
 prometheus/prometheus.yml     scrape config (cadvisor, node-exporter, docker SD)
 loki/loki-config.yml          single-binary Loki, filesystem, 30d retention
 alloy/config.alloy            Docker log discovery -> Loki

@@ -9,16 +9,19 @@
 #              `prometheus.io/*` labels (see README).
 #   - Alerts : Grafana unified alerting e-mails critical failures.
 #
-# Everything stays on the LAN. Deploy: copy .env.example -> .env, fill it in,
-# then `docker compose up -d` (or add as a stack in Portainer).
+# Everything stays on the LAN. In Portainer, define the variables from
+# stack.env.example in the stack's Environment section — Portainer writes them to
+# a `stack.env` file that this compose loads below. For plain CLI, copy
+# stack.env.example -> stack.env and run `docker compose up -d`.
 
 services:
   grafana:
     image: grafana/grafana:11.4.0
     container_name: observability-grafana
     restart: unless-stopped
+    # Portainer writes the stack's Environment variables into this file.
     env_file:
-      - .env
+      - stack.env
     environment:
       GF_SECURITY_ADMIN_USER: ${GF_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
