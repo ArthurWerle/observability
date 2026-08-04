@@ -77,8 +77,8 @@ it shows up in Grafana within ~30s.
 
 Provisioned in `grafana/provisioning/alerting/` and delivered by e-mail:
 
-- **Service target DOWN** — a service's `/metrics` stopped responding or its
-  container disappeared.
+- **Service target DOWN** — a discovered service's `/metrics` endpoint stopped
+  responding (`up == 0`).
 - **Host disk almost full** (> 85% on `/`).
 - **Host memory high** (> 90%).
 - **Error log spike** — a container logged > 20 error lines in 5 minutes

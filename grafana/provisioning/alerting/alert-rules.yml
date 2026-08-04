@@ -6,13 +6,15 @@ groups:
     folder: Homelab
     interval: 1m
     rules:
-      # A service that exposes /metrics stopped responding (or its container
-      # disappeared). NoData => container gone => alert.
+      # A discovered service's /metrics endpoint stopped responding (up == 0).
+      # NoData (no docker-apps target at all) is treated as OK on purpose: `up`
+      # can't tell "a known service went away" from "no app is configured", so
+      # firing on NoData only produced label-less "[no value]" e-mails.
       - uid: svc_target_down
         title: Service target DOWN
         condition: C
         for: 2m
-        noDataState: Alerting
+        noDataState: OK
         execErrState: Error
         labels:
           severity: critical
